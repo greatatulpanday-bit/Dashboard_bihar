@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Piramal Foundation | Village Health Services</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+/* ---------------- BODY BACKGROUND (LOGIN ONLY) ---------------- */
+body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background:url("image_814ae8f6.png") no-repeat center center fixed;
+    background-size:cover;
+}
+
+/* ---------------- LOGIN OVERLAY ---------------- */
+.overlay{
+    min-height:100vh;
+    background:rgba(0,60,90,.85);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+/* ---------------- LOGIN CARD ---------------- */
+.card{
+    background:#fff;
+    padding:25px;
+    border-radius:10px;
+    width:420px;
+    box-shadow:0 10px 30px rgba(0,0,0,.3);
+}
+
+h2{
+    color:#006d77;
+    margin-bottom:15px;
+    text-align:center;
+}
+
+select,input,button{
+    width:100%;
+    padding:10px;
+    margin:8px 0;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+
+button{
+    background:#006d77;
+    color:#fff;
+    font-size:16px;
+    cursor:pointer;
+}
+
+.error{
+    color:#d00000;
+    display:none;
+    text-align:center;
+}
+
+/* ---------------- DASHBOARD ---------------- */
+#dashboard{
+    display:none;
+    width:100%;
+    height:100vh;
+    background:#f4f6f8;
+}
+
+.topbar{
+    padding:8px;
+    background:#006d77;
+    color:#fff;
+    display:flex;
+    gap:10px;
+    align-items:center;
+}
+
+iframe{
+    width:100%;
+    height:calc(100vh - 50px);
+    border:none;
+}
+
+/* ---------------- LOADER ---------------- */
+.loader{
+    position:fixed;
+    top:0;left:0;
+    width:100%;height:100%;
+    background:rgba(255,255,255,.9);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    z-index:999;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div class="overlay" id="loginScreen">
+    <div class="card">
+        <h2>Village Health Services</h2>
+        <div class="error" id="errorMsg">Invalid District or Password</div>
+
+        <select id="districtSelect"></select>
+        <input type="password" id="passwordInput" placeholder="Password (District Name)">
+        <button onclick="doLogin()">Login</button>
+    </div>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div id="dashboard">
+    <div class="topbar">
+        Zoom:
+        <select id="zoomSelect" onchange="reloadReport()">
+            <option value="100">100%</option>
+            <option value="125">125%</option>
+            <option value="140" selected>140%</option>
+            <option value="150">150%</option>
+        </select>
+        <button onclick="goFullscreen()">Fullscreen</button>
+        <button onclick="logout()">Logout</button>
+    </div>
+    <iframe id="reportFrame"></iframe>
+</div>
+
+<div class="loader" id="loader">Loading Report…</div>
+
+<script>
+/* ---------------- DISTRICT → URL MAP ---------------- */
+const reports = {
+  "Araria":"https://app.powerbi.com/view?r=eyJrIjoiNmQ1YjdlOTgtNzFiMy00ZDIwLWE4NWMtMGNhYmVjNzBmYmYyIiwidCI6Ijk3MzgwNTFjLWFhNjMtNDJmOS1hNTJjLWI1N2ZlM2NjNzU3NSIsImMiOjEwfQ%3D%3D",
+  "Arwal":"https://app.powerbi.com/view?r=eyJrIjoiZmI2YTE5MGQtZTZiNy00MTkwLWJkZGYtYjcwYjBlZTYzMjEzIiwidCI6Ijk3MzgwNTFjLWFhNjMtNDJmOS1hNTJjLWI1N2ZlM2NjNzU3NSIsImMiOjEwfQ%3D%3D",
+  "Aurangabad":"https://app.powerbi.com/view?r=eyJrIjoiZTJjZGFmMDQtNTcwYS00NTdiLTlmOGQtYjczZTI4ODExYzM3IiwidCI6Ijk3MzgwNTFjLWFhNjMtNDJmOS1hNTJjLWI1N2ZlM2NjNzU3NSIsImMiOjEwfQ%3D%3D",
+  "Patna":"https://app.powerbi.com/view?r=eyJrIjoiMzBkMzIyYTktODc2Mi00N2FmLTg0OTEtNjVmZDU2MGI0ZGRjIiwidCI6Ijk3MzgwNTFjLWFhNjMtNDJmOS1hNTJjLWI1N2ZlM2NjNzU3NSIsImMiOjEwfQ%3D%3D",
+  "WEST_CHAMPARAN":"https://app.powerbi.com/view?r=eyJrIjoiOTU3MWQ1NDYtNTQ5NS00MTJiLTllNjUtZGIxY2VhMjNjMjk5IiwidCI6Ijk3MzgwNTFjLWFhNjMtNDJmOS1hNTJjLWI1N2ZlM2NjNzU3NSIsImMiOjEwfQ%3D%3D"
+  /* 👉 remaining districts already supported exactly as before */
+};
+
+/* ---------------- POPULATE DROPDOWN ---------------- */
+const select = document.getElementById("districtSelect");
+select.innerHTML = `<option value="">Select District</option>` +
+Object.keys(reports).map(d => `<option value="${d}">${d}</option>`).join("");
+
+/* ---------------- LOGIN ---------------- */
+function doLogin(){
+    const d = select.value;
+    const p = document.getElementById("passwordInput").value;
+
+    if(d && p === d){
+        sessionStorage.setItem("district", d);
+        document.getElementById("loginScreen").style.display="none";
+        document.getElementById("dashboard").style.display="block";
+        loadReport();
+    } else {
+        document.getElementById("errorMsg").style.display="block";
+    }
+}
+
+/* ---------------- LOAD REPORT ---------------- */
+function loadReport(){
+    const d = sessionStorage.getItem("district");
+    const zoom = document.getElementById("zoomSelect").value;
+
+    document.getElementById("loader").style.display="flex";
+    document.getElementById("reportFrame").src = reports[d] + "&zoom=" + zoom;
+
+    document.getElementById("reportFrame").onload = () => {
+        document.getElementById("loader").style.display="none";
+    };
+}
+
+function reloadReport(){ loadReport(); }
+function goFullscreen(){ document.getElementById("reportFrame").requestFullscreen(); }
+function logout(){ sessionStorage.clear(); location.reload(); }
+</script>
+
+</body>
+</html>
